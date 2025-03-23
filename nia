@@ -1,0 +1,708 @@
+-- 🟢 LOAD RAYFIELD UI LIBRARY
+local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
+
+-- 🟢 CREATE MAIN WINDOW (SHADOW HUB 🌑)
+local Window = Rayfield:CreateWindow({
+   Name = "SHADOW HUB | Trap N Bang",
+   Icon = nil,
+   LoadingTitle = "WELCOME TO SHADOW HUB",
+   LoadingSubtitle = "LOADING SCRIPTS & FEATURES ⚙️",
+   Theme = "Ocean",
+   DisableRayfieldPrompts = false,
+   DisableBuildWarnings = false,
+   ConfigurationSaving = {
+      Enabled = false,
+      FolderName = "ShadowHubV1",
+      FileName = "ShadowHub_Config"
+   },
+   Discord = {
+      Enabled = true,
+      Invite = "https://discord.gg/6ZxNfsDkkY",
+      RememberJoins = true
+   },
+   KeySystem = true,
+   KeySettings = {
+      Title = "🌑 SHADOW HUB | KEY SYSTEM 🔑",
+      Subtitle = "ENTER YOUR KEY TO CONTINUE",
+      Note = "JOIN OUR DISCORD FOR THE LATEST KEY!",
+      FileName = "ShadowHub_Key",
+      SaveKey = true,
+      GrabKeyFromSite = true,
+      Key = {"https://pastebin.com/raw/w0y7B4w9", "nigga"},
+   }
+})
+
+-- 🟢 CREATE TABS
+local PlayerTab = Window:CreateTab("PLAYER", nil)
+local TeleportsTab = Window:CreateTab("TELEPORTS", nil)
+local AutoFarmTab = Window:CreateTab("AUTO FARM", nil)
+local MiscTab = Window:CreateTab("MISC", nil)
+
+-- 🟢 SERVICES
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
+local VirtualInputManager = game:GetService("VirtualInputManager")
+local ProximityPromptService = game:GetService("ProximityPromptService")
+local Camera = workspace.CurrentCamera
+
+local player = Players.LocalPlayer
+local character = player.Character or player.CharacterAdded:Wait()
+local humanoid = character:WaitForChild("Humanoid")
+local rootPart = character:WaitForChild("HumanoidRootPart")
+
+local autoFarmEnabled = false
+local instantInteractEnabled = false
+local spamEConnection
+local spinConnection
+local noclipEnabled = false
+local noclipConnection
+local instantInteractConnection
+
+-- 🟢 SAFE FLY FUNCTION
+local function flyTo(destination)
+    if not rootPart then return end
+    local speed = 50
+    local targetPosition = destination - Vector3.new(0, 3, 0)
+    local function smoothMove(target)
+        local distance = (target - rootPart.Position).Magnitude
+        local flightTime = distance / speed
+        local startPos = rootPart.Position
+        local startTime = tick()
+        while tick() - startTime < flightTime do
+            local progress = math.clamp((tick() - startTime) / flightTime, 0, 1)
+            rootPart.CFrame = CFrame.new(startPos:Lerp(target, progress))
+            task.wait(0.02)
+        end
+        rootPart.CFrame = CFrame.new(target)
+    end
+    smoothMove(targetPosition)
+end
+
+-- Create a button instead of a toggle for Van AutoFarm
+AutoFarmTab:CreateButton({
+    Name = "VANFARM",
+    Callback = function(value)
+        -- Only activate the Van Autofarm if it's not already active
+        if not isVanFarmActive then
+            -- Set the flag to true to prevent further activations
+            isVanFarmActive = true
+            
+            -- Activate the Van Autofarm Script when the button is pressed
+            activateVanAutofarm()
+
+            -- Optionally, add a message to show the status
+            print("Van Autofarm has been activated.")
+        else
+            -- Inform the user that it has already been activated
+            print("Van Autofarm is already active.")
+        end
+    end
+})
+
+-- Function to move the FinishPart and its children
+function activateVanAutofarm()
+    local finishPart = workspace:WaitForChild("BoxTransport"):WaitForChild("FinishPart")
+
+    -- Ensure the part exists
+    if finishPart then
+        -- New CFrame with the specified position and orientation
+        local newCFrame = CFrame.new(2177.69995, 0.300000012, -6573.6001, 
+            1.98050911e-05, 0, 1, 
+            0, 1, 0, 
+            -1, 0, 1.97883983e-05
+        )
+
+        -- Position the FinishPart at the new CFrame
+        finishPart.CFrame = newCFrame
+
+        -- Move all children of the FinishPart (like TouchInterest, BillboardGui, etc.)
+        for _, child in ipairs(finishPart:GetChildren()) do
+            -- Move each child to the new position
+            if child:IsA("BasePart") then
+                child.CFrame = finishPart.CFrame * CFrame.new(child.Position)
+            elseif child:IsA("BillboardGui") then
+                -- Handle BillboardGui (make sure it's in the correct position)
+                child.Parent = finishPart
+            elseif child:IsA("TouchTransmitter") then
+                -- Move touch interest if it exists
+                child.Parent = finishPart
+            end
+        end
+
+        -- Print confirmation to the output
+        print("Van Autofarm Activated: FinishPart moved to new position with all children.")
+    else
+        print("FinishPart not found in workspace!")
+    end
+end
+
+
+
+-- 🟢 RESTORED & FIXED AUTO FARM WITH PAUSE AND CONTINUE
+AutoFarmTab:CreateToggle({
+    Name = "DISHFARM",
+    CurrentValue = false,
+    Flag = "AutoFarm",
+    Callback = function(Value)
+        autoFarmEnabled = Value
+        if autoFarmEnabled then
+            -- Enable Instant Interact
+            instantInteractEnabled = true
+            instantInteractConnection = ProximityPromptService.PromptButtonHoldBegan:Connect(function(prompt)
+                if instantInteractEnabled then
+                    prompt.HoldDuration = 0
+                    prompt.RequiresLineOfSight = false
+                    prompt:InputHoldBegin()
+                    task.wait()
+                    prompt:InputHoldEnd()
+                end
+            end)
+
+            -- Safe TP to First Spot
+            flyTo(Vector3.new(125.7, 5.4, 1240.5))
+            task.wait(1)
+
+            -- Press "E" to Start Task (Instantly)
+            VirtualInputManager:SendKeyEvent(true, Enum.KeyCode.E, false, game)
+            task.wait(0.1)
+            VirtualInputManager:SendKeyEvent(false, Enum.KeyCode.E, false, game)
+
+            -- Wait for Space Key Press to Continue
+            local spacePressed = false
+            local spaceConnection
+            spaceConnection = UserInputService.InputBegan:Connect(function(input, gameProcessed)
+                if gameProcessed then return end
+                if input.KeyCode == Enum.KeyCode.Space then
+                    spacePressed = true
+                    spaceConnection:Disconnect()
+                end
+            end)
+
+            -- Wait until Space is pressed to move to the second spot
+            repeat task.wait(0.1) until spacePressed
+
+            -- Safe TP to Second Spot
+            flyTo(Vector3.new(120.0, 5.4, 1264.1))
+            task.wait(1)
+            rootPart.Anchored = true
+
+            -- Rotate Camera
+            spinConnection = RunService.RenderStepped:Connect(function()
+                Camera.CFrame = Camera.CFrame * CFrame.Angles(0, -math.rad(1), 0)
+            end)
+
+            -- Spam "E" for Farming (No cooldown, continuous press)
+            spamEConnection = RunService.RenderStepped:Connect(function()
+                if autoFarmEnabled then
+                    -- Send E press continuously
+                    VirtualInputManager:SendKeyEvent(true, Enum.KeyCode.E, false, game)
+                    task.wait(0.1) -- Small delay to simulate button press
+                    VirtualInputManager:SendKeyEvent(false, Enum.KeyCode.E, false, game)
+                end
+            end)
+        else
+            autoFarmEnabled = false
+            instantInteractEnabled = false
+            rootPart.Anchored = false
+
+            if instantInteractConnection then
+                instantInteractConnection:Disconnect()
+                instantInteractConnection = nil
+            end
+
+            if spinConnection then
+                spinConnection:Disconnect()
+                spinConnection = nil
+            end
+
+            if spamEConnection then
+                spamEConnection:Disconnect()
+                spamEConnection = nil
+            end
+        end
+    end
+})
+
+local Slider = PlayerTab:CreateSlider({
+    Name = "SPEED",
+    Range = {16, 45},
+    Increment = 1,
+    Suffix = "SPEED",
+    CurrentValue = 16,
+    Flag = "Slider144412", -- A flag for configuration saving
+    Callback = function(Value)
+        -- Check if the value is actually changing to avoid unnecessary callback triggers
+        local character = game.Players.LocalPlayer.Character
+        if character and character:FindFirstChild("Humanoid") then
+            local humanoid = character.Humanoid
+            if humanoid.WalkSpeed ~= Value then
+                humanoid.WalkSpeed = Value
+            end
+        end
+    end,
+})
+
+PlayerTab:CreateToggle({ 
+    Name = "🚀 NOCLIP", 
+    Callback = function(Value) 
+        noclipEnabled = Value
+        if noclipEnabled then 
+            noclipConnection = RunService.Stepped:Connect(function()
+                for _, part in pairs(character:GetDescendants()) do 
+                    if part:IsA("BasePart") then 
+                        part.CanCollide = false 
+                    end 
+                end 
+            end) 
+        else 
+            if noclipConnection then
+                noclipConnection:Disconnect()
+                noclipConnection = nil
+            end
+            for _, part in pairs(character:GetDescendants()) do 
+                if part:IsA("BasePart") then 
+                    part.CanCollide = true 
+                end 
+            end 
+        end 
+    end 
+})
+
+-- 🟢 TELEPORT BUTTON (CTRL + CLICK)
+PlayerTab:CreateButton({
+    Name = "Click to TP (CTRL + CLICK)",
+    Callback = function()
+        local UIS = game:GetService("UserInputService")
+        local Player = game.Players.LocalPlayer
+        local Mouse = Player:GetMouse()
+
+        function GetCharacter()
+            return game.Players.LocalPlayer.Character
+        end
+
+        function Teleport(pos)
+            local Char = GetCharacter()
+            if Char then
+                Char:MoveTo(pos)
+            end
+        end
+
+        -- Listen for mouse click and CTRL key press
+        UIS.InputBegan:Connect(function(input)
+            if input.UserInputType == Enum.UserInputType.MouseButton1 and UIS:IsKeyDown(Enum.KeyCode.LeftControl) then
+                Teleport(Mouse.Hit.p)
+            end
+        end)
+    end
+})
+
+-- 🟢 TELEPORT TO HOUSES WITH SLIGHT UNDERGROUND MOVEMENT
+TeleportsTab:CreateButton({
+    Name = "🏠 HOUSES",
+    Callback = function()
+        local targetPosition = Vector3.new(1246.6, 6.4, 530.9)
+        local undergroundPosition = targetPosition - Vector3.new(0, 10, 0) -- Move 5 studs underground (just below the ground)
+
+        -- First, fly to a position just below the ground (head disappears)
+        flyTo(undergroundPosition)
+
+        -- Wait for the underground position flight to finish
+        task.wait(1)
+
+        -- Then, rise up to the final target position
+        flyTo(targetPosition)  -- Complete the movement to the target position
+    end
+})
+
+-- 🟢 TELEPORT TO MONEY LAUNDERY WITH SLIGHT UNDERGROUND MOVEMENT
+TeleportsTab:CreateButton({
+    Name = "💸Money Launder",
+    Callback = function()
+        local targetPosition = Vector3.new(375.0, 10.1, 69.3)
+        local undergroundPosition = targetPosition - Vector3.new(0, 0, 0) -- Move 5 studs underground (just below the ground)
+
+        -- First, fly to a position just below the ground (head disappears)
+        flyTo(undergroundPosition)
+        -- Then, rise up to the final target position
+        flyTo(targetPosition)  -- Complete the movement to the target position
+    end
+})
+
+-- 🟢 TELEPORT TO HOUSES WITH SLIGHT UNDERGROUND MOVEMENT
+TeleportsTab:CreateButton({
+    Name = "🚗 GARAGE",
+    Callback = function()
+        local targetPosition = Vector3.new(136.6, 16.4, 483.2)
+        local undergroundPosition = targetPosition - Vector3.new(0, 10, 0) -- Move 5 studs underground (just below the ground)
+
+        -- First, fly to a position just below the ground (head disappears)
+        flyTo(undergroundPosition)
+
+        -- Wait for the underground position flight to finish
+        task.wait(1)
+
+        -- Then, rise up to the final target position
+        flyTo(targetPosition)  -- Complete the movement to the target position
+    end
+})
+
+-- 🟢 TELEPORT TO LIDL WITH SLIGHT UNDERGROUND MOVEMENT
+TeleportsTab:CreateButton({
+    Name = "🛒 LIDL",
+    Callback = function()
+        local targetPosition = Vector3.new(90.1, 3.3, 463.3)
+        local undergroundPosition = targetPosition - Vector3.new(0, 0, 0) -- Move 5 studs underground (just below the ground)
+
+        -- First, fly to a position just below the ground (head disappears)
+        flyTo(undergroundPosition)
+        -- Then, rise up to the final target position
+        flyTo(targetPosition)  -- Complete the movement to the target position
+    end
+})
+
+-- 🟢 TELEPORT TO VANS WITH SLIGHT UNDERGROUND MOVEMENT
+TeleportsTab:CreateButton({
+    Name = "🚐 VANS",
+    Callback = function()
+        local targetPosition = Vector3.new(2199.4, 3.1, -6488.0)
+        local undergroundPosition = targetPosition - Vector3.new(0, 0, 0) -- Move 5 studs underground (just below the ground)
+
+        -- First, fly to a position just below the ground (head disappears)
+        flyTo(undergroundPosition)
+        -- Then, rise up to the final target position
+        flyTo(targetPosition)  -- Complete the movement to the target position
+    end
+})
+
+-- 🟢 TELEPORT TO BAGS WITH SLIGHT UNDERGROUND MOVEMENT
+TeleportsTab:CreateButton({
+    Name = "🎒 BACKPACK",
+    Callback = function()
+        local targetPosition = Vector3.new(368.2, 3.4, 180.8)
+        local undergroundPosition = targetPosition - Vector3.new(0, 0, 0) -- Move 5 studs underground (just below the ground)
+
+        -- First, fly to a position just below the ground (head disappears)
+        flyTo(undergroundPosition)
+        -- Then, rise up to the final target position
+        flyTo(targetPosition)  -- Complete the movement to the target position
+    end
+})
+
+-- 🟢 Chatlogs BUTTON
+MiscTab:CreateButton({
+    Name = "📃CHAT LOGS",
+    Callback = function()
+        pcall(function()
+            -- Farewell Infortality.
+-- Version: 2.82
+-- Instances:
+local ChatGui = Instance.new("ScreenGui")
+local Frame = Instance.new("Frame")
+local LogPanel = Instance.new("ScrollingFrame")
+local Close = Instance.new("TextButton")
+local Mini = Instance.new("TextButton")
+local Log = Instance.new("TextButton")
+local title = Instance.new("TextLabel")
+--Properties:
+ChatGui.Name = "ChatGui"
+ChatGui.Parent = game.Players.LocalPlayer.PlayerGui
+ChatGui.ResetOnSpawn = false
+
+Frame.Parent = ChatGui
+Frame.BackgroundColor3 = Color3.new(0, 0, 0)
+Frame.BorderSizePixel = 0
+Frame.Position = UDim2.new(0.0278396439, 0, 0.565217376, 0)
+Frame.Size = UDim2.new(0, 392, 0, 25)
+Frame.Active = true
+Frame.Draggable = true
+
+LogPanel.Name = "LogPanel"
+LogPanel.Parent = Frame
+LogPanel.BackgroundColor3 = Color3.new(0, 0, 0)
+LogPanel.BorderColor3 = Color3.new(0.223529, 0.223529, 0.223529)
+LogPanel.Position = UDim2.new(-0.000221580267, 0, 0.968695641, 0)
+LogPanel.Size = UDim2.new(0, 392, 0, 203)
+LogPanel.ScrollBarThickness = 5
+LogPanel.ScrollingEnabled = true
+LogPanel.CanvasSize=UDim2.new(2,0,100,0)
+
+Close.Name = "Close"
+Close.Parent = Frame
+Close.BackgroundColor3 = Color3.new(1, 1, 1)
+Close.BackgroundTransparency = 1
+Close.Position = UDim2.new(0.823979557, 0, 0.0399999991, 0)
+Close.Size = UDim2.new(0, 69, 0, 24)
+Close.Font = Enum.Font.SourceSans
+Close.Text = "Close"
+Close.TextColor3 = Color3.new(1, 1, 1)
+Close.TextSize = 14
+
+Mini.Name = "Mini"
+Mini.Parent = Frame
+Mini.BackgroundColor3 = Color3.new(1, 1, 1)
+Mini.BackgroundTransparency = 1
+Mini.Position = UDim2.new(0.647959173, 0, 0, 0)
+Mini.Size = UDim2.new(0, 69, 0, 24)
+Mini.Font = Enum.Font.SourceSans
+Mini.Text = "Minimize"
+Mini.TextColor3 = Color3.new(1, 1, 1)
+Mini.TextSize = 14
+
+Log.Name = "Log"
+Log.Parent = Frame
+Log.BackgroundColor3 = Color3.new(1, 1, 1)
+Log.BackgroundTransparency = 1
+Log.Position = UDim2.new(0.293367326, 0, 0, 0)
+Log.Size = UDim2.new(0, 69, 0, 24)
+Log.Font = Enum.Font.SourceSans
+Log.Text = "Log Chat [ON]"
+Log.TextColor3 = Color3.new(1, 1, 1)
+Log.TextSize = 14
+
+title.Name = "title"
+title.Parent = Frame
+title.BackgroundColor3 = Color3.new(1, 1, 1)
+title.BackgroundTransparency = 1
+title.Size = UDim2.new(0, 115, 0, 24)
+title.Font = Enum.Font.SourceSans
+title.Text = "Chat GUI"
+title.TextColor3 = Color3.new(1, 1, 1)
+title.TextSize = 14
+title.TextXAlignment = Enum.TextXAlignment.Left
+-- Scripts:
+local logging = true
+local minimized = false
+Log.MouseButton1Down:Connect(function()
+	logging = not logging
+	if logging then Log.Text = "Log Chat [ON]" else Log.Text = "Log Chat [OFF]" end
+end)
+Mini.MouseButton1Down:Connect(function()
+	if minimized then
+		LogPanel:TweenSize(UDim2.new(0, 392, 0, 203), "InOut", "Sine", 0.5, false, nil)
+	else
+		LogPanel:TweenSize(UDim2.new(0, 392, 0, 0), "InOut", "Sine", 0.5, false, nil)
+	end
+	minimized = not minimized
+end)
+Close.MouseButton1Down:Connect(function()
+	ChatGui:Destroy()
+end)
+
+local prevOutputPos = 0
+function output(plr, msg)
+	if not logging then return end
+	local colour = Color3.fromRGB(255,255,255)
+	
+	if string.sub(msg, 1,1) == ":" or string.sub(msg,1,1) == ";" then colour = Color3.fromRGB(255,0,0) elseif string.sub(msg,1,2) == "/w" or string.sub(msg,1,7) == "/whisper" or string.sub(msg,1,5) == "/team" or string.sub(msg,1,2) == "/t" then colour = Color3.fromRGB(0,0,255) else colour = Color3.fromRGB(255,255,255) end
+	
+ 	local o = Instance.new("TextLabel",LogPanel)
+ 	o.Text = plr.Name .. ": " .. msg
+ 	o.Size = UDim2.new(0.5,0,.006,0)
+ 	o.Position = UDim2.new(0,0,.007 + prevOutputPos ,0)
+ 	o.Font = Enum.Font.SourceSansSemibold
+ 	o.TextColor3 = colour
+ 	o.TextStrokeTransparency = 0
+ 	o.BackgroundTransparency = 0
+	o.BackgroundColor3 = Color3.new(0,0,0)
+ 	o.BorderSizePixel = 0
+	o.BorderColor3 = Color3.new(0,0,0)
+ 	o.FontSize = "Size14"
+	o.TextXAlignment = Enum.TextXAlignment.Left
+ 	o.ClipsDescendants = true
+	prevOutputPos = prevOutputPos + 0.007
+	end
+
+for i,v in pairs(game.Players:GetChildren()) do
+	v.Chatted:Connect(function(msg)
+		output(v, msg)
+	end)
+end
+
+game.Players.ChildAdded:Connect(function(plr)
+	if plr:IsA("Player") then
+		plr.Chatted:Connect(function(msg)
+			output(plr, msg)
+		end)
+	end
+end)
+        end)
+    end
+})
+
+-- 🟢 ESP BUTTON
+MiscTab:CreateButton({
+    Name = "🔍 ESP(F4/F3)",
+    Callback = function()
+        pcall(function()
+            loadstring(game:HttpGet('https://raw.githubusercontent.com/ic3w0lf22/Unnamed-ESP/master/UnnamedESP.lua'))()
+        end)
+    end
+})
+    
+-- 🟢 Rejoin BUTTON
+MiscTab:CreateButton({
+    Name = "🔁 REJOIN SERVER",
+    Callback = function()
+        pcall(function()
+local ts = game:GetService("TeleportService")
+
+local p = game:GetService("Players").LocalPlayer
+
+
+
+ts:TeleportToPlaceInstance(game.PlaceId, game.JobId, p)
+        end)
+    end
+})
+
+-- 🟢 Deadserver BUTTON
+MiscTab:CreateButton({
+    Name = "🟢 LOWEST SERVER HOP",
+    Callback = function()
+        pcall(function()
+            local Http = game:GetService("HttpService")
+local TPS = game:GetService("TeleportService")
+local Api = "https://games.roblox.com/v1/games/"
+
+local _place = game.PlaceId
+local _servers = Api.._place.."/servers/Public?sortOrder=Asc&limit=100"
+function ListServers(cursor)
+  local Raw = game:HttpGet(_servers .. ((cursor and "&cursor="..cursor) or ""))
+  return Http:JSONDecode(Raw)
+end
+
+local Server, Next; repeat
+  local Servers = ListServers(Next)
+  Server = Servers.data[1]
+  Next = Servers.nextPageCursor
+until Server
+
+TPS:TeleportToPlaceInstance(_place,Server.id,game.Players.LocalPlayer)
+        end)
+    end
+})
+
+-- 🟢 ANTI-AFK FUNCTION
+local lastInputTime = tick()
+local idleTimeLimit = 300 -- Time in seconds before AFK kick (e.g., 300 seconds = 5 minutes)
+
+-- Function to reset the AFK timer whenever there is user input
+local function resetAFKTimer()
+    lastInputTime = tick()
+end
+
+-- Function to simulate activity (e.g., mouse move) when idle for too long
+local function simulateActivity()
+    while true do
+        if tick() - lastInputTime > idleTimeLimit then
+            -- Simulate some activity here (e.g., mouse movement)
+            -- Example: Simulate a slight mouse move
+            game:GetService("UserInputService").InputChanged:Fire({
+                UserInputType = Enum.UserInputType.MouseMovement,
+                Position = Vector2.new(0, 0) -- Move the mouse slightly
+            })
+            wait(60) -- Simulate activity every 60 seconds if idle for too long
+        end
+        wait(1)
+    end
+end
+
+-- Listen for player input to reset the AFK timer
+local userInputConnection
+userInputConnection = game:GetService("UserInputService").InputBegan:Connect(function(input, gameProcessed)
+    if gameProcessed then return end
+    resetAFKTimer() -- Reset AFK timer on user input
+end)
+
+-- Start Anti-AFK simulation
+local simulateConnection = spawn(function()
+    simulateActivity()
+end)
+
+-- 🟢 FUNCTION TO END THE SCRIPT AND CLEAN UP
+local function endScript()
+    -- Disconnect connections to stop the script
+    if userInputConnection then
+        userInputConnection:Disconnect()
+        userInputConnection = nil
+    end
+
+    -- Stop the simulateActivity function
+    if simulateConnection then
+        simulateConnection:Disconnect()
+        simulateConnection = nil
+    end
+
+    print("Anti-AFK script has been ended and cleaned up.")
+end
+
+-- Call the endScript function when you want to stop the Anti-AFK script
+-- Example: endScript() -- This would stop the script
+
+-- If you want it to stop when the player leaves, you can use:
+game.Players.LocalPlayer.AncestryChanged:Connect(function(_, parent)
+    if not parent then
+        endScript() -- End the script when the player leaves
+    end
+end)
+
+-- 🟢 Trap N Bang Group Notification (Roles + Rank)
+local Players = game:GetService("Players")
+local GroupService = game:GetService("GroupService")
+local SoundService = game:GetService("SoundService")
+local GROUP_ID = 32812072  -- Trap N Bang Group ID
+local notificationSoundId = "rbxassetid://6026984224" -- Notification sound (can change if needed)
+
+-- List of roles that should trigger notifications
+local targetRoles = {
+    "Trial Moderator",
+    "Moderator",
+    "Administrator",
+    "Head Administrator",
+    "Staff Manager",
+    "Community Manager",
+    "Developer",
+    "realtugs",
+    "ReaalCY"
+}
+
+-- Function to send notification
+local function sendNotification(playerName, playerRank)
+    game:GetService("StarterGui"):SetCore("SendNotification", {
+        Title = "⚠️ ADMIN JOINED! ⚠️",
+        Text = playerName .. " (" .. playerRank .. ") has joined your game!",
+        Duration = 5
+    })
+
+    -- Play notification sound
+    local sound = Instance.new("Sound")
+    sound.SoundId = notificationSoundId
+    sound.Volume = 2
+    sound.Parent = SoundService
+    sound:Play()
+
+    task.wait(5) -- Wait before removing sound
+    sound:Destroy()
+end
+
+-- Check if a joining player has one of the target roles
+Players.PlayerAdded:Connect(function(player)
+    task.spawn(function()
+        local success, groupInfo = pcall(function()
+            return GroupService:GetGroupInfoAsync(GROUP_ID)
+        end)
+
+        if success and groupInfo then
+            local playerRole = player:GetRoleInGroup(GROUP_ID)
+            
+            -- Check if player's role matches one of the target roles
+            if table.find(targetRoles, playerRole) then
+                -- Get the player's rank in the group
+                local playerRank = player:GetRankInGroup(GROUP_ID)
+                -- Send notification with username and rank
+                sendNotification(player.Name, playerRank)
+            end
+        end
+    end)
+end)
