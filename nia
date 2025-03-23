@@ -28,7 +28,7 @@ local Window = Rayfield:CreateWindow({
       FileName = "ShadowHub_Key",
       SaveKey = true,
       GrabKeyFromSite = true,
-      Key = {"https://pastebin.com/raw/w0y7B4w9", "nigga"},
+      Key = {"https://pastebin.com/raw/w0y7B4w9", "nigger"},
    }
 })
 
