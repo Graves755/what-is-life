@@ -81,7 +81,7 @@ end
 
 -- Create a button instead of a toggle for Van AutoFarm
 AutoFarmTab:CreateButton({
-    Name = "VANFARM",
+    Name = "VANFARM (LEVEL 150+)",
     Callback = function(value)
         -- Only activate the Van Autofarm if it's not already active
         if not isVanFarmActive then
